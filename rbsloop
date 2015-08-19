@@ -1,0 +1,484 @@
+#!/bin/sh
+# Run xbooz & xbootsj from a vmec wout to calculate bootstrap current
+# Usage: rbsloop extv [extm errTgt=0.01 mstep=10]
+#     1. vmec_ext = extv = extension of initial vmec input file 
+#              read from user if not given
+#     2. mtk_ext = extm = extension of prof_mtk_in
+#              use present dir name if not given
+#     3. errTgt = target error [0.01]
+#     4. mstep  = max num of steps [set to 10 if 0]
+#        if mstep < 0, erase old jbsLoop_ext and start a new loop
+
+# Needs input files: input.$extv, mfile=prof_mtk_in_$extm, (combined ext=${extv}_${extm})
+# Needs programs/scripts: xvmec, vmcs, rboozbs, NextIp, delimit, prof_mtk, jbs_mtk, tor_to_pol
+
+# Script logic and flow:
+# Goal: For a given p profile, get self-consistent vmec case with j_tot=j_oh+j_bs
+# Method: Start with a guess for j_tot (with known j_oh) and fake torflx vs polflx
+#         Get a vmec eqlb
+#         Create vmec torflx vs polflx for jbs_mtk
+#         Calculate j_bs for this case to prime the loop
+#         In a loop:
+#           Set j=j_oh + alpha*j_bs and redo vmec
+#           Create vmec torflx vs polflx for jbs_mtk
+#           Calculate j_bs for this case for next step in loop
+#           Calc rms error = Integral(j_bs_old-j_bs_new)^2
+#           If err is small, exit
+#         End loop
+#         Calc secondary quantities: for gene etc  
+# Notes: j_bs to be calculated using vmec boozbs and Mike's jbs_mtk and compared at each step
+#        Since vmec needs torflx, while jbs_mtk and gene need polflux, each step needs a conversion
+
+# Note: loop is always run in folder jbsLoop_ext
+
+# Input pressure is given vs poloidal flux in a file pIn_$ext
+#   It contains following columns:
+#     polFluxNorm, pressure, ....
+# This file stays put through the loop
+#   At the end of every step, a file jOut_$ext is made by the bootstrap program
+#   It is fed to the next step
+#   It contains following columns:
+#   polFluxNorm, jBS, jOH, ...
+
+# In the first (priming step), we read pressure vs polflux from pIn_ext,
+# and create fake torflux vs polflux, and Ip profile vs torflux
+# and use these to create the staring input.new file for vmec 
+
+# At the start of each step, the profiles vs polflux from pIn_$ext and jOut_$ext
+# are changed to profiles vs torflux (on possibly a non-uniform grid if aphi is given)
+# then NextIp is used to make new profiles vs torflux
+# then these are put into input.new
+
+# ------------------------------------
+# SubScripts
+
+# One step in the loop (including nstep=1)
+OneStep()
+{
+  [ -f input.new ] || { echo "OneStep Error: no input.new" ; exit ; }
+  [ -f prof_mtk_out ] || { echo "OneStep Error: no prof_mtk_out" ; exit ; }
+  echo " "
+  echo "======================================="
+  echo "rbsloop: running loop number "$nstep" out of "$mstep
+
+  # ------------------------
+  # 1. Run vmec for input.new
+  #    Note: vmec has its own flux arrays (tor & pol) set by aphi, 
+  #          which are carried by vmcs, rboozbs, and jbs_mtk
+  echo "---------------------------------------"
+    echo " Running vmec: $extv $extm $errTgt $mstep"
+    xvmec new; wait; rm -f fort*
+  # xvmec makes wout file needed for vmcs
+
+  # 2. Run vmcs to put <j.B>(s) and f(s)=I'(s)/<j.B>(s) in gPOL_new
+  # Note: <j.B> is on full-grid, starts at r=0, nr points
+  echo "---------------------------------------"
+    echo " Running vmcs: $extv $extm $errTgt $mstep"
+    echo new $ntheta > in_vmcs_new
+    vmcs < in_vmcs_new; wait
+  # Calc & write ped_ene_frac (at each step because eqlb shape changes due to j prof change, though P profile stays same)
+    ped_ene_frac 1.0e5 prof_mtk_in > ped_EKIN_frac
+
+  # Note: vmcs writes jbs_mtk_geom_in_$ext to which rboozbs will paste last column
+    echo "-- vmcs wrote jbs_mtk_geom_in_new with 4 cols R(m),a(m),q,r*BT"
+    wc jbs_mtk_geom_in_new
+    head -n 3 jbs_mtk_geom_in_new
+    echo "... to ..."
+    tail -n 3 jbs_mtk_geom_in_new
+
+  # ------------------------
+  # Calculate bootstrap current in two ways:
+  # 1. The vmec jBS way: Run rboozbs to calculate f_trapped and make jbs_mtk_geom_in
+  # Note: It also puts <jBs.B> into jBbs.new column 1, but we won't use it, only compare it to jbs_mtk
+  # Note <jBbs.B> is on half-grid, nr-1 points
+  echo "---------------------------------------"
+    echo " Running rboozbs: $extv $extm $errTgt $mstep"
+    rboozbs new; wait
+  # rboozbs pastes trapped_fraction in last column to make jbs_mtk_geom_in for jbs_mtk
+    echo "-- rboozbs added 5th col Trapped Particle Fraction to make jbs_mtk_geom_in"
+    head -n 3 jbs_mtk_geom_in
+    echo "... to ..."
+    tail -n 3 jbs_mtk_geom_in
+
+  # 2. The mtk jBS way: Since jbs_mtk reads prof_mtk_out and jbs_mtk_geom_in ASSUMING same polFlx grid for both,
+  #    arrays in the one-time prof_mtk_out must be mapped to the arrays in the new jbs_mtk_geom_in.
+  #  tor_to_pol: Using polflx vs torflx in gPOL (which was made by vmcs and depends on this vmec run),
+  #    map prof_mtk_fixed arrays to prof_mtk_out to match vmec arrays, and
+  #    convert jBS, jOH (from jbs_mtk_out), and p (from prof_mtk_out) profiles
+  #      to profiles vs corresponding torflx
+  #    Note: this must be done every time because polflx to trflx map changes when vmec is run
+  echo "---------------------------------------"
+    echo " Running tor_to_pol: $extv $extm $errTgt $mstep"
+    tor_to_pol; wait
+    echo "-- tor_to_pol added pflxV,pV,denV,tiV,teV,tflxV,jT/jB,vpV to prof_mtk_out"
+    head -n 4 prof_mtk_out
+    echo "... to ..."
+    tail -n 4 prof_mtk_out
+
+  # Now run jbs_mtk to calculate jBS & OH profiles in jbs_mtk_out (all vs polflx)
+  echo "---------------------------------------"
+    echo " Running jbs_mtk: $extv $extm $errTgt $mstep"
+    jbs_mtk; wait
+    echo "-- jbs_mtk made jbs_mtk_out, jbs_phy_out, jbs_geo_out, jbs_coef_out"
+    wc jbs_mtk_out
+    head -n 2 jbs_mtk_out
+    wc jbs_phy_out
+    head -n 2 jbs_phy_out
+    wc jbs_geo_out
+    head -n 2 jbs_geo_out
+
+  # Type gnuplot 'gp_jbs' - : to compare the 2 bootstrap currents vmec vs mtk.
+  # Note: add column torFlx (from prof_mtk_out) to end of jbs_mtk_out
+  #       Column numbers here MUST match those written by jbs_mtk.f
+  echo "---------------------------------------"
+  echo "GnuPlotting current profile"
+    sed '/#/d' prof_mtk_out | awk '{print $6}' > t1
+    paste jbs_mtk_out t1 > t
+    mv t jbs_mtk_out
+    rm -f t1
+    echo "plot 'jbs_mtk_out' u (abs("'$2'")) w l t 'mtk', 'jBbs.new' u (abs("'$2'")) w l t 'vmec', 'jbs_coef_out' u (abs("'$2'")) w l t 'vmec_mtk'" > gp_jbs
+
+  # 3. Use vmec <j.B> (c4 in gPOL) and mtk <j.B> (c3 in jbs_mtk_out) to find alfa=alfa*(jB0_new/jB0_Old)
+  #    This matches ohmic <j.B> from vmcs and jbs_mtk at r=0 (jBS will never be scaled)
+  echo "---------------------------------------"
+  echo " Calculating alpha"
+    if [ "$nstep" -eq 1 ]
+    then
+      jBvmec=`sed -n '2p' gPOL_new |awk '{ print $4 }'`
+    else
+      jBvmec=`sed -n '2p' gPOL_old |awk '{ print $4 }'`
+    fi
+    jBmtk=`sed -n '1p' jbs_mtk_out |awk '{ print $3 }'`
+    alfa=`perl -e "print ( ($jBvmec/$jBmtk) )";echo`
+    echo "Nstep $nstep: alfa = $alfa, jBvmec=$jBvmec, jBmtk=$jBmtk"
+
+  # ------------------------
+  # Make input I'(s)=alfa*jOH + jBS vs torflux profile to put in input for the next step 
+  # With NextCur, using jOH, & jBs from jbs_mtk_out (c2,3), and torFlx from prof_mtk_out (c6)
+  echo "---------------------------------------"
+    echo " Running NextCur at alpha=$alfa"
+    echo "$alfa" > tmp
+    NextCur < tmp ; wait
+    rm -f tmp
+    echo "-- NextCur wrote j_new to insert into vmec input, and"
+    echo "-- tFlx, jTot, jBS, ${alfa}*jOH into cur_new"
+    head -n 4 cur_new
+    echo "... to ..."
+    tail -n 4 cur_new
+
+  # Calc error = % rms diff between old and new I'(s) integrated over s
+  echo "---------------------------------------"
+  echo " Calculating rms error: jTot from vmec vs NextCur"
+    # Create jold from this vmec input file
+    sed -n '/AC_AUX_F =/,/End current array/p' input.new | head -n-1 | tail -n+2 > jOld 
+    # Create jnew from output of NextCur
+    awk '{print $2}' cur_new > jNew
+
+    # Calculate rms err from difference between two total currents jOld vs jNew
+    err=`paste jOld jNew | awk '{print 2*($1-$2)/($1+$2)}' | awk '{ sum += $1*$1 } END { print (sum/NR)**0.5 }'`
+
+    # Create gpEV to plot j evolution with rbsloops
+    if [ "$nstep" -eq 1 ]
+    then
+      # Start new gpEV with jOld to gnuplot jTot EVolution   
+      awk '{print $1}' cur_new > jNew   # Now jNew has tflx array
+      paste jNew jOld > gpEV            # Put tflx and jOld into gpEV starter
+    else
+      # Add another column of jNew to gpEV
+      paste gpEV jNew > jOld; mv jOld gpEV
+    fi
+    rm -f jNew jOld
+
+  # ------------------------
+  # Save current files as old, just for good luck
+  echo "---------------------------------------"
+  echo " Saving current new files as old"
+    cp cur_new cur_old
+    cp gPOL_new gPOL_old
+    cp jBbs.new jBbs.old
+    cp input.new input.old
+
+  # Generate new vmec input file using curr_new made by NextIp and pmass_arr made by tor_to_pol
+  # Put new p and Ip arrays between inpB and inpE to make input.new
+  echo "---------------------------------------"
+    echo " Generating next input file: $extv $extm $errTgt $mstep"
+    # Adjust phiedge in inpB to match set value of Btor
+    # Use linear method in step 1 (cannot do Newton)
+    # Note: Due to plasma diamagnetism or ferromagnetism, the linear change may not work 
+    if [ "$nstep" -gt 0 ]
+    then
+      echo "=== Step = $nstep, using linear jump for phiEdge"
+      BcntrCur=`grep Bcntr gp2_new | awk '{print $NF}' |sed 's/-//'`
+      phiEdgeCur=`grep -i "^ *PHIEDGE" input.new | sed 's/,//' | awk -F= '{print $NF}' | sed -n 1p`
+      phiEdgeNew=`perl -e "print ( ($phiEdgeCur)*($Bcntr)/($BcntrCur) )";echo`
+      echo "  phiEdgeNew, phiEdgeCur, BcntrCur = $phiEdgeNew, $phiEdgeCur, $BcntrCur"
+    else
+      echo "=== Step = $nstep , using Newton for phiEdge"
+    # Use Newton's method:
+    # Set BcntrOld to BcntrCur from previous step
+      BcntrOld=$BcntrCur
+    # Reset BcntrCur from gp2_new (take its absolute value)
+      BcntrCur=`grep Bcntr gp2_new | awk '{print $NF}' |sed 's/-//'`
+    # Set phiEdgeOld to phiEdgeCur from previous step
+      phiEdgeOld=$phiEdgeCur
+    # Reset phiEdgeCur from inpB
+      phiEdgeCur=`grep -i "^ *PHIEDGE" input.new | sed 's/,//' | awk -F= '{print $NF}' | sed -n 1p`
+    # Calculate  phiEdgeNew using (BcntrCur-BcntrOld)/(phiEdgeCur-phiEdgeOld)
+      slope=`perl -e "print ( ($phiEdgeCur-$phiEdgeOld)/($BcntrCur-$BcntrOld) )";echo`
+      if [ `perl -e "print ( $slope > 3*($phiEdgeCur)/($BcntrCur) )";echo` ]
+      then  # just use linear step
+        phiEdgeNew=`perl -e "print ( ($phiEdgeCur)*($Bcntr)/($BcntrCur) )";echo`
+        echo "=== Newton slope too big, using linear for phiEdgeNew = $phiEdgeNew"
+      else  # use Newton
+        phiEdgeNew=`perl -e "print ( $phiEdgeCur +($Bcntr-$BcntrCur)*$slope )";echo`
+        echo "=== Newton phiEdgeNew = $phiEdgeNew, slope = $slope"
+      fi
+    fi
+
+    # Change phiedge value in inpB
+      sed 's/^ *PHIEDGE *=.*/ PHIEDGE = '$phiEdgeNew'/' inpB > tmp; mv tmp inpB
+      grep -i "^ *PHIEDGE" inpB
+
+    # Assemble whole next input.new file for vmec
+    cat inpB pmass_arr j_new inpE > input.new
+    rm -f fort.*
+  # ------------------------
+
+    echo $nstep"  "$err"  "$alfa"  "$BcntrCur"  "$phiEdgeCur >> ErrLog
+    echo "==== Finished step $nstep, Err=$err, alfa=$alfa, Bcntr=$BcntrCur  ===="
+}
+# ============================================================
+# Main script
+# Unpack command line (d=default for each entry)
+
+# 1. extv = vmec extension (read from user if not given)
+[ "$1" ] && extv=$1 || { echo "vmec input file extension?" ; read extv ; }
+  iFile="input.$extv"   # vmec input master file: Defines vmec params, including ns_array=nr
+  [ -f "$iFile" ] || { echo "rbsloop: No $iFile file here" ; exit ; }
+
+# 2. extm = mtk extension (use present dir name if not given)
+#    set prof_mtk_in master file: defines fixed pressure profile & only an initial j_bs
+  if [ "$2" ] 
+  then
+    extm=$2
+    mFile="prof_mtk_in_$extm" 
+  else
+    extm=`pwd | awk -F/ '{print $NF}'`
+    mFile="prof_mtk_in" 
+  fi
+  [ -f "$mFile" ] || { echo "rbsloop: No $mFile file here" ; exit ; }
+  # Name of jbsloop folder to be created has $extm, not full $ext (why?) Changed to ext 8 Oct 2014
+  ext=${extv}_${extm}
+  jbsLoop=jbsL_$ext
+
+# 3. errTgt = target error
+# errTgt=$3 or 0.001
+[ "$3" ] && errTgt=$3 || errTgt=0.001
+[ "$errTgt" == "d" ] &&  errTgt=0.001
+
+# 4. mstep  = max num of steps [set to 20 if 0
+#    if mstep < 0, erase old jbsLoop_ext and start a new loop
+# mstep=$4 or 5
+[ "$4" ] && mstep=$4 || mstep=20
+[ "$mstep" == "d" ] &&  mstep=20
+if [ "$mstep" -le 0 ]
+then
+  echo "Removing old and Starting new $jbsLoop"
+  rm -fr $jbsLoop
+  mm=`perl -e "print ( abs($mstep) )";echo`; mstep=$mm
+fi
+
+initDir=`pwd`
+# 5. Make sure prof_mtk_in is up-to-date
+
+# ----------------------------------------------
+# Check if new loop or continuation of old loop
+  nstep=1
+  if [ -d "$jbsLoop" ]  
+  then
+# Old loop exists, so potentially continue it
+    cd $jbsLoop
+    # Recover ALL state info from last run
+    nstep=`tail -n 1 ErrLog | awk '{print $1}'` # Get current nstep from last line in ErrLog
+    err=`tail -n 1 ErrLog | awk '{print $2}'`   # Get current err
+    alfa=`tail -n 1 ErrLog | awk '{print $3}'`  # Get current alfa
+    BcntrCur=`tail -n 1 ErrLog | awk '{print $4}'`    # Get current BcntrCur
+    phiEdgeCur=`tail -n 1 ErrLog | awk '{print $5}'`  # Get current phiEdgeCur
+    mm=`expr $nstep + 1`; nstep=$mm
+    mm=`expr $nstep + $mstep`; mstep=$mm
+    nr_mtk=`sed -n '5p' prof_mtk_in| awk '{print $1}'`
+    nr=`grep nr nrt | awk '{print $NF}'`
+    ntheta=`grep ntheta nrt | awk '{print $NF}'`
+    echo "Continuing old loop from step $nstep, Err=$err, errTgt=$errTgt"
+    #
+    # Parse input.new file at proper makrkers to make inpB and inpE
+     [ "`grep -i "^ *&BOOTIN" input.new`" ] || { echo "rbsloop: No namelist BOOTIN in $iFile" ; exit ; }
+     [ "`grep -i "Begin *j *and *p *arrays" input.new`" ] || { echo "rbsloop: 'No Begin j and p arrays' in $iFile" ; exit ; }
+     [ "`grep -i "End *j *and *p *arrays" input.new`" ] || { echo "rbsloop: No 'End j and p arrays' in $iFile" ; exit ; }
+    # Extract first part of input.new into inpB
+     sed -n '1,/Begin j and p arrays/p' input.new > inpB
+    # Extract last part of input.new into inpE
+     awk '/End j and p arrays/,0' input.new > inpE
+    #
+  else                  
+# No old loop, so start a new loop and copy/create all necessary files
+    # Set up a new loop directory
+    mkdir $jbsLoop
+    cd $jbsLoop
+      echo "============ Priming everything ================="
+      # Run prof_mtk ONLY ONCE to make pressure profile vs polFlx in prof_mtk_out, and set nr=num of profile array points
+      # Copy prof_mtk_in from ../$mFile to prof_mtk_in
+      [ -f "../$mFile" ] && cp ../$mFile prof_mtk_in || { echo "rbsloop: No $mFile file here" ; exit ; }
+      # Extract nr_mtk from 5th line of prof_mtk_in
+      nr_mtk=`sed -n '5p' prof_mtk_in| awk '{print $1}'`
+      echo "rbsloop: running prof_mtk once only to make prof_mtk_fixed"
+      prof_mtk; wait
+      cp prof_mtk_out prof_mtk_fixed
+      #
+      # Copy ifile=input.$extv, check, and ger nr and ntheta
+      echo "---------------------------------------"
+      echo "Copying $ifile to input.new"
+      [ -f "../$iFile" ] && cp ../$iFile input.new || { echo "rbsloop: No $iFile file here" ; exit ; }
+      [ "`grep -i "^ *NS_ARRAY" input.new`" ] || { echo "rbsloop: No NS_ARRAY in $iFile" ; exit ; }
+      nr=`grep -i "^ *NS_ARRAY" input.new | awk '{print $NF}'`
+      # Following check will be dropped later:
+      # [ "$nr" -ne "$nr_mtk" ] && { echo "nr=$nr from prof_mtk_in .ne. nr=$nr_mtk from $iFile" ; exit ; }
+      nt=`grep -i "^ *MPOL" input.new | awk '{print $NF}'`
+      ntheta=`expr $nt \* 4`
+      echo " nr = $nr , ntheta = $ntheta"
+      # save nr, ntheta in case loop is continued later
+      echo "nr = $nr" > nrt
+      echo "ntheta = $ntheta" >> nrt
+      # Parse input.new file at proper makrkers to make inpB and inpE
+      [ "`grep -i "^ *&BOOTIN" input.new`" ] || { echo "rbsloop: No namelist BOOTIN in $iFile" ; exit ; }
+      [ "`grep -i "Begin *j *and *p *arrays" input.new`" ] || { echo "rbsloop: 'No Begin j and p arrays' in $iFile" ; exit ; }
+      [ "`grep -i "End *j *and *p *arrays" input.new`" ] || { echo "rbsloop: No 'End j and p arrays' in $iFile" ; exit ; }
+      # Extract first part of input.new into inpB
+      sed -n '1,/Begin j and p arrays/p' input.new > inpB
+      # Extract last part of input.new into inpE
+      awk '/End j and p arrays/,0' input.new > inpE
+      #
+      # Initialize some parameters
+      nstep=1
+      err=1
+      alfa=1
+      # Start new errLog file
+      echo "#  1.nstep  2.err  3.alfa  4.Bcntr  5.phiEdge: input.${extv} ${mfile}" > ErrLog
+      echo "Starting new loop, errTgt=$errTgt"
+  fi
+
+# Extract target Bcntr from vmec inpB (or from user if not in inpB)
+  Bcntr=`grep -i "^! *Target *Bcntr" inpB | awk '{print $NF}'`
+  if [ "$Bcntr" == "" ]
+  then
+    echo -n "*** Enter target Btor at plasma center > "
+    read Bcntr
+    echo "*** You should put ! Bcntr = "$Bcntr" in vmec input file to avoid this query in future"
+    echo "I am adding it to input.new for future use"
+    awk '/PHIEDGE/{print "! Bcntr = '$Bcntr'"}1' inpB > tmp; mv tmp inpB
+  else
+    echo "Target Bcntr = "$Bcntr
+  fi
+
+# Now run the loop until ($err < $errTgt) or ($nstep -gt $mstep)
+echo "Running rbsloop "$extv $extm $errTgt $mstep $nr
+
+fin=0
+while [ "$nstep" -le "$mstep" ]
+do
+  OneStep  # runs a single step, calculates err
+  n=$nstep
+  nstep=`expr 1 + $nstep`
+  if [ "$n" -eq 1 ]
+  then
+    echo -n "plot 'gpEV' u 1:$nstep t '$n: $err' w l" >> gpTmp
+  else
+    echo -n ",'gpEV' u 1:$nstep t '$n: $err' w l" >> gpTmp
+  fi
+  # Break loop if err < errTgt
+  if [ `perl -e "print ( $err < $errTgt )";echo` ]
+  then
+    echo "Success: Quit at step "$n", reached err="$err" below errTgt="$errTgt
+    fin=1
+    break
+  fi
+done
+[ "$fin" -eq 0 ] && echo "Not yet: Quit at step "$mstep" while Err="$err" above errTgt="$errTgt
+
+rm -f fort*
+
+# -----------------------------------------------------------------------
+# Post-processing:
+# Put all final profiles in one file (never to be used as input in loop):
+echo "# nrVMEC=$nr nrMTK=$nr_mtk" > FinalProfs 
+echo "# 1.sqrt(tFlx) 2.pFlx 3.p 4.den 5.Ti 6.Te 7.jT/jB 8.jbs 9.sigma 10.gamE_N 11.gamE0_N 12.chi_gyro 13.chi" >> FinalProfs
+sed '/#/d' prof_mtk_out | awk '{print sqrt($6)," ",$1," ",$2," ",$3," ",$4," ",$5," ",$7}'  > tmpA
+awk '{print $2," ",$3," ",$4," ",$5," ",$6," ",$7}' jbs_mtk_out > tmpB
+paste tmpA tmpB | sed 's/\t/ /g' >> FinalProfs
+rm tmpA tmpB
+
+rm -f fort.*
+
+# gp_cur to see different currents
+echo "plot 'cur_new' u 1:2 w l t 'jTot', 'cur_new' u 1:5 w l t 'jCD','cur_new' u 1:3 w l t 'jBS'" > gp_cur
+echo 'pause -1 "Hit any key to exit"' >> gp_cur
+
+# plot
+mv gpTmp gp
+echo "" >> gp
+echo 'pause -1 "Hit any key to exit"' >> gp
+echo 'quit' >> gp
+# gnuplot gp
+
+# tar jbsrun
+echo "---------------------------------------"
+cd $initDir
+# tar -cvf ${jbsLoop}.tar $jbsLoop
+echo "rbsloop finished"
+
+# -----------------------------------------------------------------------
+# Do various post-processes:
+
+# mkGene route went through gist, no longer used by us
+# Run xvmec_txt on last case, for use in mkGene
+# echo "---------------------------------------"
+# echo "running xvmec_txt for mkGene"
+# xvmec_txt new; wait
+# Run mkGene with default settings
+# mkGene
+# -----------------------------------------------------------------------
+
+# Make efit from last wout_new.nc to send to gene
+if [ -d "$jbsLoop" ]
+then
+  echo "Creating efit for gene at full & 512 resolution"
+  cd $jbsLoop
+   echo "--- Running vmEF twice ---"
+   echo "new 0 0 0 10 111" > tmp
+   vmEF < tmp; wait
+   echo "new 512 512 512 10 111" > tmp
+   vmEF < tmp; wait
+   echo "--- Finished Running vmEF twice ---"
+
+   # Run dcon on final input
+   echo "31" > tmp
+   echo "new" >> tmp
+   echo "new_512_512_512" >> tmp
+   echo "--- Running dcon ---"
+   rundcon < tmp
+   echo "--- Finished Running dcon ---"
+
+   # Calculate fusion power
+   FusionPower
+
+   # Calculate various betas
+   echo "--- Running betaNorm ---"
+
+   # Consolidate all profs into rbsProfs
+   rbsInfo
+
+   tar -cvf ${jbsLoop}_gene.tar g_* FinalProfs rbsProfs input.new prof_mtk_in prof_mtk_out geneBq_* ped_EKIN_frac FusPow_new *dcon*
+fi
+
+rm -f tmp*
+
