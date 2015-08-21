@@ -171,11 +171,13 @@ start_line=i+start_line+1
 
 
 
+print "psiax", psiax
+print "psisep", psisep
+
 #linear grid of psi, on which all 1D fields are defined
 linpsi=linspace(psiax,psisep,nw)
 #create rho_tor grid
 x_fine=linspace(psiax,psisep,nw*10)
-#print "x_fine", x_fine[0:10]
 phi_fine=empty((nw*10),dtype=float)
 phi_fine[0]=0.
 interpol_order=3
@@ -185,17 +187,9 @@ for i in range(1,nw*10):
     x=x_fine[:i+1]
     y=q_spl_psi(x)
     phi_fine[i]=trapz(y,x)
-
-#plt.plot(x_fine, phi_fine, 'rx')
-#plt.show()
-
 rho_tor_fine=sqrt(phi_fine/phi_fine[-1])
-#plt.plot(x_fine, rho_tor_fine, 'rx')
-#plt.show()
-
 rho_tor_spl=US(x_fine,rho_tor_fine,k=interpol_order,s=1e-5)
 rho_tor=empty(nw,dtype=float)
-
 for i in range(nw):
     rho_tor[i]=rho_tor_spl(linpsi[i])
 
@@ -208,169 +202,96 @@ Z0_ind = np.argmin(np.abs(Zgrid-zmid))
 psi=np.arange(nw)/float(nw-1)*(psisep-psiax)
 #print "psi",psi
 psi_midplane = psirz[Z0_ind,:]
-
+#plt.plot(psi_midplane,'x')
+#plt.show()
 B_pol = fd_d1_o4(psi_midplane,Rgrid)/Rgrid
 psi_norm_out = (psi_midplane-psiax)/(psisep-psiax)
+#plt.plot(psi_norm_out,'x')
+#plt.show()
 F_out = interp(psi/(psisep-psiax),F,psi_norm_out)
 p_out = interp(psi/(psisep-psiax),p,psi_norm_out)
 rho_tor_out = interp(rho_pol_fine, rho_tor_fine, np.sqrt(psi_norm_out))
 
-f = open('pb.dat','w')
-f.write('# Outer Midplane')
-f.write('# 1.R(m) 2.psi_norm 3.B_pol(T) 4.B_tor(T) 5.Pressure 6.rho_tor \n')
-f.write('# R at magnetic axis = '+str(rmag)+'\n')
-f.write('# psisep - psiax = '+str(psisep-psiax)+'\n')
+f1 = open('evenR.dat','w')
+f1.write('# Outer Midplane')
+f1.write('# 1.R(m) 2.psi_norm 3.B_pol 4.B_tor 5.p 6.rho_tor \n')
+f1.write('# R at magnetic axis = '+str(rmag)+'\n')
+f1.write('# psisep - psiax = '+str(psisep-psiax)+'\n')
 Rmag_ind = np.argmin(abs(Rgrid - rmag))
 print "rmag",rmag
 print "Rmag_ind",Rmag_ind
 print "Rgrid[Rmag_ind]",Rgrid[Rmag_ind]
+#temp = psi_norm_out
 temp = np.copy(psi_norm_out)
 temp[0:Rmag_ind] = 0
+#plt.plot(psi_norm_out,'x')
+#plt.plot(temp,'r.')
+#plt.show()
 psi_ind_sep = np.argmin(abs(temp-1.05))
-psisep_ind = np.argmin(abs(temp-1.0)) 
 print "psi_ind_sep",psi_ind_sep
+print "psi_midplane[psi_ind_sep]",psi_midplane[psi_ind_sep]
+print "psi_midplane[Rmag_ind]", psi_midplane[Rmag_ind]
 B_tor = F_out / Rgrid
 p_out = p_out/np.max(p_out)
-np.savetxt(f,np.column_stack((Rgrid[Rmag_ind:psi_ind_sep],psi_norm_out[Rmag_ind:psi_ind_sep],B_pol[Rmag_ind:psi_ind_sep],B_tor[Rmag_ind:psi_ind_sep],p_out[Rmag_ind:psi_ind_sep],rho_tor_out[Rmag_ind:psi_ind_sep])))
-f.close()
 
+psiax_ind = np.argmin(abs(psi_midplane-psiax))
+psi_outboard_mp = np.copy(psi_midplane)
+psi_outboard_mp[0:psiax_ind] = 0
 
-n=1000
-evenpsi = linspace(psi_norm_out[Rmag_ind],psi_norm_out[psisep_ind],n)
+psisep_ind = np.argmin(abs(psi_outboard_mp-psisep))
+
+print "psisep_ind", psisep_ind
+print "psi_midplane[psisep_ind]", psi_midplane[psisep_ind]
+print "psiax_ind", psiax_ind
+print "psi_midplane[psiax_ind]", psi_midplane[psiax_ind]
+print "Rgrid[psiax_ind]", Rgrid[psiax_ind]
+
+#plt.plot(psi_norm_out[psiax_ind:psisep_ind],'x')
+#plt.plot(psi_norm_out[Rmag_ind:psi_ind_sep],'r.')
+#plt.show()
+#Bn_tor_2 = F[psiax_ind:psisep_ind]/Rgrid
+###evenpsi = linspace(psi_norm_out[Rmag_ind],
+###          psi_norm_out[psisep_ind],psisep_ind-Rmag_ind)
+###R_evenpsi = interp(psi_norm_out[Rmag_ind:psisep_ind],
+###            Rgrid[Rmag_ind:psisep_ind],evenpsi)
+evenpsi = linspace(psi_norm_out[Rmag_ind],
+          psi_norm_out[psisep_ind],nw)
 R_evenpsi = interp(psi_norm_out[Rmag_ind:psisep_ind],
-	    Rgrid[Rmag_ind:psisep_ind],evenpsi) 
-B_p = interp(Rgrid,B_pol,R_evenpsi) 
-F_out_2 = interp(psi/(psisep-psiax),F,evenpsi) 
-B_t = F_out_2 / R_evenpsi 
-p_out_2 = interp(psi/(psisep-psiax),p,evenpsi) 
-p_out_2 = p_out_2/np.max(p_out_2) 
+	    Rgrid[Rmag_ind:psisep_ind],evenpsi)
 
-rho_t = interp(rho_pol_fine,rho_tor_fine,np.sqrt(evenpsi))
+#plt.plot(R_evenpsi,evenpsi,'r.')
+#plt.plot(Rgrid[Rmag_ind:psisep_ind],psi_norm_out[Rmag_ind:psisep_ind],'bx')
+#plt.show()
+#print psi_norm_out[Rmag_ind:Rmag_ind+10]
+#print Rgrid[Rmag_ind:Rmag_ind+10]
+#plt.plot(psi_norm_out[Rmag_ind:psi_ind_sep],Rgrid[Rmag_ind:psi_ind_sep],'b.')
+#plt.plot(evenpsi,R_evenpsi,'rx')
+#plt.show()
+#plt.plot(psi_norm_out,'x')
+#plt.show()
 
-f2 = open('evenpsi.dat','w') 
-f2.write('# 1.psi_even 2.R_evenpsi 3.B_p 4.B_t 5.P 6.rho_t\n') 
-np.savetxt(f2,np.column_stack((evenpsi,R_evenpsi,B_p,B_t,p_out_2,rho_t)))
+B_p = interp(Rgrid,B_pol,R_evenpsi)
+F_out_2 = interp(psi/(psisep-psiax),F,evenpsi)
+B_t = F_out_2 / R_evenpsi
+p_out_2 = interp(psi/(psisep-psiax),p,evenpsi)
+p_out_2 = p_out_2/np.max(p_out_2)
+
+
+psiax_ind = np.argmin(abs(psi_midplane-psiax))
+np.savetxt(f1,np.column_stack((Rgrid[Rmag_ind:psisep_ind],psi_norm_out[Rmag_ind:psisep_ind],B_pol[Rmag_ind:psisep_ind],B_tor[Rmag_ind:psisep_ind],p_out[Rmag_ind:psisep_ind],rho_tor_out[Rmag_ind:psisep_ind])))
+#np.savetxt(f1,np.column_stack((Rgrid[Rmag_ind:psi_ind_sep],psi_norm_out[Rmag_ind:psi_ind_sep],B_pol[Rmag_ind:psi_ind_sep],B_tor[Rmag_ind:psi_ind_sep],p_out[Rmag_ind:psi_ind_sep],rho_tor_out[Rmag_ind:psi_ind_sep])))
+#np.savetxt(f,np.column_stack((Rgrid[Rmag_ind:psi_ind_sep],psi_norm_out[Rmag_ind:psi_ind_sep],evenpsi,R_evenpsi)))
+f1.close()
+
+f2 = open('evenpsi.dat','w')
+f2.write('# 1.psi_even 2.R_evenpsi 3.B_p 4.B_t 5.P\n')
+np.savetxt(f2,np.column_stack((evenpsi,R_evenpsi,B_p,B_t,p_out_2)))
 f2.close()
 
-iterdb_filename=args[1]
-iterdb_file=open(iterdb_filename,'r')
-
-data_in=iterdb_file.read()
-data_linesplit=data_in.split('\n')
-
-keep_going=1
-i=0
-while keep_going:
-    test=re.search(';-# OF X PTS',data_linesplit[i])
-    if test:
-        num=data_linesplit[i].split()[0]
-        num=float(num)
-        num=int(num)
-        print "number of points:",num
-        keep_going=(1==2)
-    if i == len(data_linesplit):
-        keep_going=(1==2)
-    i=i+1
-
-lnum=0
-while len(data_linesplit)-lnum > 10:
-    sec_num_lines = num/6
-    if num % 6 != 0:
-        sec_num_lines += 1
-    keep_going=1
-    while keep_going:
-        test=re.search('-DEPENDENT VARIABLE LABEL',data_linesplit[lnum])
-        #test2=re.search('INDEPENDENT',data_linesplit[lnum])
-        if test :
-            quantity=data_linesplit[lnum].split()[0]
-            units=data_linesplit[lnum].split()[1]
-        test2=re.search('DATA FOLLOW',data_linesplit[lnum])
-        if test2:
-            keep_going=(1==2)
-        lnum=lnum+1
-
-    if quantity=='NM1':
-       print "Reading :",quantity
-       rhot1=np.empty(0)
-       lnum0 = lnum
-       for j in range(lnum0,lnum0+sec_num_lines):
-           for k in range(6):
-               str_temp=data_linesplit[j][1+k*13:1+(k+1)*13]
-               if(re.search('e',str_temp)):
-                   temp=np.array(data_linesplit[j][1+k*13:1+(k+1)*13],dtype='float')
-                   rhot1=np.append(rhot1,temp)
-           lnum=lnum+1
-       
-       lnum=lnum+1
-
-       arr1=np.empty(0)
-       lnum0 = lnum
-       for j in range(lnum0,lnum0+sec_num_lines):
-           for k in range(6):
-               str_temp=data_linesplit[j][1+k*13:1+(k+1)*13]
-               if(re.search('e',str_temp)):
-                  temp=np.array(data_linesplit[j][1+k*13:1+(k+1)*13],dtype='float')
-                  arr1=np.append(arr1,temp)
-           lnum=lnum+1
-
-    if quantity=='TI':
-       print "Reading :",quantity
-       rhot2=np.empty(0)
-       lnum0 = lnum
-       for j in range(lnum0,lnum0+sec_num_lines):
-           for k in range(6):
-               str_temp=data_linesplit[j][1+k*13:1+(k+1)*13]
-               if(re.search('e',str_temp)):
-                   temp=np.array(data_linesplit[j][1+k*13:1+(k+1)*13],dtype='float')
-                   rhot2=np.append(rhot2,temp)
-           lnum=lnum+1
-
-       lnum=lnum+1
-
-       arr2=np.empty(0)
-       lnum0 = lnum
-       for j in range(lnum0,lnum0+sec_num_lines):
-           for k in range(6):
-               str_temp=data_linesplit[j][1+k*13:1+(k+1)*13]
-               if(re.search('e',str_temp)):
-                  temp=np.array(data_linesplit[j][1+k*13:1+(k+1)*13],dtype='float')
-                  arr2=np.append(arr2,temp)
-           lnum=lnum+1
-    else:
-       lnum = lnum + 2*sec_num_lines + 1
-	
-vout=np.empty((len(arr1),4),dtype='float')
-vout[:,0]=rhot1
-vout[:,1]=arr1/np.max(arr1)
-vout[:,2]=rhot2
-vout[:,3]=arr2/np.max(arr2)
-f=open('nt.dat','w')
-f.write('#'+iterdb_filename+'\n'+'#1.rhot 2.density 3.rhot 4.temp_i'+ '\n')
-np.savetxt(f,vout)
-f.close()
-
-dens = vout[:,1]
-tempi= vout[:,3]
-
-#plt.plot(rho_t,p_out_2,'b.')
-#plt.plot(rhot1,dens*tempi,'rx')
-#plt.plot(rhot1, p_out_2, 'rx')
-#plt.show()
-
-#plt.plot(rho_tor_out[Rmag_ind:psisep_ind],p_out[Rmag_ind:psisep_ind],'b.')
-#plt.plot(rhot1,dens*tempi,'rx')
-#plt.show()
-
-dens_evenpsi = interp(rhot1,dens,evenpsi)
-tempi_evenpsi = interp(rhot1,tempi,evenpsi)
-Er = fd_d1_o4(dens_evenpsi*tempi_evenpsi,evenpsi)/dens_evenpsi
-B_tot = sqrt(B_p**2+B_t**2)
-gammaE = fd_d1_o4(Er/B_tot,evenpsi)
-
-plt.plot(rho_t,gammaE)
-plt.show()
-
-
+f3 = open('psi_R.dat','w')
+f3.write('#1.psi 2.R_even\n')
+np.savetxt(f3,np.column_stack((evenpsi,R_evenpsi)))
+f3.close()
 
 
 
