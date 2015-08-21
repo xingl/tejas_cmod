@@ -192,6 +192,7 @@ for i in range(1,nw*10):
 rho_tor_fine=sqrt(phi_fine/phi_fine[-1])
 #plt.plot(x_fine, rho_tor_fine, 'rx')
 #plt.show()
+q_fine = q_spl_psi(x_fine)
 
 rho_tor_spl=US(x_fine,rho_tor_fine,k=interpol_order,s=1e-5)
 rho_tor=empty(nw,dtype=float)
@@ -209,48 +210,102 @@ psi=np.arange(nw)/float(nw-1)*(psisep-psiax)
 #print "psi",psi
 psi_midplane = psirz[Z0_ind,:]
 
-B_pol = fd_d1_o4(psi_midplane,Rgrid)/Rgrid
-psi_norm_out = (psi_midplane-psiax)/(psisep-psiax)
-F_out = interp(psi/(psisep-psiax),F,psi_norm_out)
-p_out = interp(psi/(psisep-psiax),p,psi_norm_out)
-rho_tor_out = interp(rho_pol_fine, rho_tor_fine, np.sqrt(psi_norm_out))
+Bp_evenR = fd_d1_o4(psi_midplane,Rgrid)/Rgrid
+psi_norm_evenR = (psi_midplane-psiax)/(psisep-psiax)
+F_evenR = interp(psi/(psisep-psiax),F,psi_norm_evenR)
+p_evenR = interp(psi/(psisep-psiax),p,psi_norm_evenR)
+rho_tor_evenR = interp(rho_pol_fine, rho_tor_fine, np.sqrt(psi_norm_evenR))
 
 f = open('pb.dat','w')
 f.write('# Outer Midplane')
-f.write('# 1.R(m) 2.psi_norm 3.B_pol(T) 4.B_tor(T) 5.Pressure 6.rho_tor \n')
+f.write('# 1.R(m) 2.psi_norm 3.B_pol(T) 4.B_tor(T) 5.q 6.Pressure 7.rho_tor \n')
 f.write('# R at magnetic axis = '+str(rmag)+'\n')
 f.write('# psisep - psiax = '+str(psisep-psiax)+'\n')
 Rmag_ind = np.argmin(abs(Rgrid - rmag))
 print "rmag",rmag
 print "Rmag_ind",Rmag_ind
 print "Rgrid[Rmag_ind]",Rgrid[Rmag_ind]
-temp = np.copy(psi_norm_out)
+print "psi_norm_evenR[Rmag_ind]",psi_norm_evenR[Rmag_ind]
+print "psiax", psiax
+
+temp = np.copy(psi_norm_evenR)
 temp[0:Rmag_ind] = 0
 psi_ind_sep = np.argmin(abs(temp-1.05))
 psisep_ind = np.argmin(abs(temp-1.0)) 
-print "psi_ind_sep",psi_ind_sep
-B_tor = F_out / Rgrid
-p_out = p_out/np.max(p_out)
-np.savetxt(f,np.column_stack((Rgrid[Rmag_ind:psi_ind_sep],psi_norm_out[Rmag_ind:psi_ind_sep],B_pol[Rmag_ind:psi_ind_sep],B_tor[Rmag_ind:psi_ind_sep],p_out[Rmag_ind:psi_ind_sep],rho_tor_out[Rmag_ind:psi_ind_sep])))
+print "psisep_ind",psisep_ind
+print "psi_norm_evenR[psisep_ind]", psi_norm_evenR[psisep_ind]
+print "psi_midplane[psisep_ind]", psi_midplane[psisep_ind]
+print "psisep", psisep
+
+Bt_evenR = F_evenR / Rgrid
+p_evenR = p_evenR/np.max(p_evenR)
+q_evenR = interp(psi/(psisep-psiax),qpsi,psi_norm_evenR)
+np.savetxt(f,np.column_stack((Rgrid[Rmag_ind:psisep_ind],psi_norm_evenR[Rmag_ind:psisep_ind],Bp_evenR[Rmag_ind:psisep_ind],Bt_evenR[Rmag_ind:psisep_ind],q_evenR[Rmag_ind:psisep_ind],p_evenR[Rmag_ind:psisep_ind],rho_tor_evenR[Rmag_ind:psisep_ind])))
 f.close()
 
 
-n=1000
-evenpsi = linspace(psi_norm_out[Rmag_ind],psi_norm_out[psisep_ind],n)
-R_evenpsi = interp(psi_norm_out[Rmag_ind:psisep_ind],
-	    Rgrid[Rmag_ind:psisep_ind],evenpsi) 
-B_p = interp(Rgrid,B_pol,R_evenpsi) 
-F_out_2 = interp(psi/(psisep-psiax),F,evenpsi) 
-B_t = F_out_2 / R_evenpsi 
-p_out_2 = interp(psi/(psisep-psiax),p,evenpsi) 
-p_out_2 = p_out_2/np.max(p_out_2) 
+n=3000
+evenpsi = linspace(psi_norm_evenR[Rmag_ind],psi_norm_evenR[psisep_ind],n)
 
-rho_t = interp(rho_pol_fine,rho_tor_fine,np.sqrt(evenpsi))
+print "psi_norm_evenR[psisep_ind]", psi_norm_evenR[psisep_ind]
+print "evenpsi[-1]", evenpsi[-1]
+
+R_evenpsi = interp(psi_norm_evenR[Rmag_ind:psisep_ind],
+	    Rgrid[Rmag_ind:psisep_ind],evenpsi) 
+print "Rgrid[psisep_ind]", Rgrid[psisep_ind]
+print "R_evenpsi[-1]", R_evenpsi[-1]
+
+Bp_evenpsi = interp(Rgrid,Bp_evenR,R_evenpsi) 
+F_evenpsi = interp(psi/(psisep-psiax),F,evenpsi) 
+Bt_evenpsi = F_evenpsi / R_evenpsi 
+p_evenpsi = interp(psi/(psisep-psiax),p,evenpsi) 
+p_evenpsi = p_evenpsi/np.max(p_evenpsi) 
+q_evenpsi = interp(psi/(psisep-psiax),qpsi,evenpsi)
+
+rhot_evenpsi = interp(rho_pol_fine,rho_tor_fine,np.sqrt(evenpsi))
 
 f2 = open('evenpsi.dat','w') 
-f2.write('# 1.psi_even 2.R_evenpsi 3.B_p 4.B_t 5.P 6.rho_t\n') 
-np.savetxt(f2,np.column_stack((evenpsi,R_evenpsi,B_p,B_t,p_out_2,rho_t)))
+f2.write('# 1.R_evenpsi 2.evenpsi 3.B_p 4.B_t 5.q_out 6.P 7.rhot_evenpsi\n') 
+np.savetxt(f2,np.column_stack((R_evenpsi,evenpsi,Bp_evenpsi,Bt_evenpsi,q_evenpsi,p_evenpsi,rhot_evenpsi)))
 f2.close()
+
+
+plt.plot(Rgrid[Rmag_ind:psisep_ind],psi_norm_evenR[Rmag_ind:psisep_ind],'x')
+plt.plot(R_evenpsi,evenpsi,'r.')
+plt.xlabel('R')
+plt.ylabel('psi_p')
+plt.show()
+
+plt.plot(psi_norm_evenR[Rmag_ind:psisep_ind],Bp_evenR[Rmag_ind:psisep_ind],'x')
+plt.plot(evenpsi,Bp_evenpsi,'r.')
+plt.xlabel('psi_p')
+plt.ylabel('B_p')
+plt.show()
+
+plt.plot(psi_norm_evenR[Rmag_ind:psisep_ind],Bt_evenR[Rmag_ind:psisep_ind],'x')
+plt.plot(evenpsi,Bt_evenpsi,'r.')
+plt.xlabel('psi_p')
+plt.ylabel('B_t')
+plt.show()
+
+plt.plot(psi_norm_evenR[Rmag_ind:psisep_ind],q_evenR[Rmag_ind:psisep_ind],'x')
+plt.plot(evenpsi,q_evenpsi,'r.')
+plt.xlabel('psi_p')
+plt.ylabel('q')
+plt.show()
+
+plt.plot(psi_norm_evenR[Rmag_ind:psisep_ind],p_evenR[Rmag_ind:psisep_ind],'x')
+plt.plot(evenpsi,p_evenpsi,'r.')
+plt.xlabel('psi_p')
+plt.ylabel('p')
+plt.show()
+
+plt.plot(psi_norm_evenR[Rmag_ind:psisep_ind],rho_tor_evenR[Rmag_ind:psisep_ind],'x')
+plt.plot(evenpsi,rhot_evenpsi,'r.')
+plt.xlabel('psi_p')
+plt.ylabel('rho_t')
+plt.show()
+
 
 iterdb_filename=args[1]
 iterdb_file=open(iterdb_filename,'r')
@@ -352,25 +407,56 @@ f.close()
 dens = vout[:,1]
 tempi= vout[:,3]
 
-#plt.plot(rho_t,p_out_2,'b.')
+plt.plot(rhot_evenpsi,p_evenpsi,'x')
+plt.plot(rhot1,dens*tempi,'r.')
+plt.xlabel('rho_t')
+plt.ylabel('P')
+plt.title('blue from EFIT file, red from ITERDB file')
+plt.show()
+
+#plt.plot(rho_tor_evenR[Rmag_ind:psisep_ind],p_evenR[Rmag_ind:psisep_ind],'b.')
 #plt.plot(rhot1,dens*tempi,'rx')
-#plt.plot(rhot1, p_out_2, 'rx')
 #plt.show()
 
-#plt.plot(rho_tor_out[Rmag_ind:psisep_ind],p_out[Rmag_ind:psisep_ind],'b.')
-#plt.plot(rhot1,dens*tempi,'rx')
-#plt.show()
+dens_evenpsi = interp(rhot1,dens,rhot_evenpsi)
+tempi_evenpsi = interp(rhot1,tempi,rhot_evenpsi)
 
-dens_evenpsi = interp(rhot1,dens,evenpsi)
-tempi_evenpsi = interp(rhot1,tempi,evenpsi)
-Er = fd_d1_o4(dens_evenpsi*tempi_evenpsi,evenpsi)/dens_evenpsi
-B_tot = sqrt(B_p**2+B_t**2)
-gammaE = fd_d1_o4(Er/B_tot,evenpsi)
+plt.plot(rhot1,dens,'x')
+plt.plot(rhot_evenpsi,dens_evenpsi,'r.')
+plt.xlabel('rho_t')
+plt.ylabel('n')
+plt.show()
 
-plt.plot(rho_t,gammaE)
+plt.plot(rhot1,tempi,'x')
+plt.plot(rhot_evenpsi,tempi_evenpsi,'r.')
+plt.xlabel('rho_t')
+plt.ylabel('Ti')
 plt.show()
 
 
+Er = fd_d1_o4(dens_evenpsi*tempi_evenpsi,evenpsi)/dens_evenpsi
+B_tot = sqrt(Bp_evenpsi**2+Bt_evenpsi**2)
+gammaE = fd_d1_o4(Er/B_tot,evenpsi)
+
+plt.plot(rhot_evenpsi,gammaE)
+plt.ylabel('gamma_E')
+plt.xlabel('rho_t (at even psi_p)')
+plt.show()
+
+evenrhot = linspace(rhot_evenpsi[0],rhot_evenpsi[-1],n)
+q_evenrhot = interp(rhot_evenpsi,q_evenpsi,evenrhot)
+
+plt.plot(evenrhot,q_evenrhot,'x')
+plt.plot(rhot_evenpsi,q_evenpsi,'r.')
+plt.xlabel('rhot')
+plt.ylabel('q')
+plt.show()
+
+shat = evenrhot*fd_d1_o4(q_evenrhot,evenrhot)/q_evenrhot
+plt.plot(evenrhot,shat)
+plt.xlabel('even rho_t')
+plt.ylabel('shat')
+plt.show()
 
 
 
