@@ -1,8 +1,11 @@
 import numpy as np
 from interp import *
+import matplotlib.pyplot as plt
 
 
-def read_cmod_pfile(p_file_name):
+def read_cmod_pfile(p_file_name,shift=True,add_impurity=True):
+
+    impurity_charge = 5.0
 
     f=open(p_file_name,'r')
     data = f.read()
@@ -45,9 +48,19 @@ def read_cmod_pfile(p_file_name):
         ti = np.append(ti,float(temp[1]))
         dti = np.append(dti,float(temp[2]))
 
+    if shift:
+       psipte = psipte + 0.005
+       #psipti = psipti + 0.005
+
+    #plt.plot(psipne,'x')
+    #plt.plot(psipni,'r.')
+    #plt.show()
+
     #psi0 is normalized psi_pol in [0,1] with 1000 points
     #quantities with _out are interpolated on psi0 grid 
-    psi0 = np.arange(1000)/999.0
+    #print "length of arrays",len(ne),len(ni),len(te),len(ti)
+    #psi0 = np.arange(1000)/999.0
+    psi0 = np.linspace(0.0,1.0,len(ne))
     ne_out = interp(psipne,ne,psi0)
     te_out = interp(psipte,te,psi0)
     ni_out = interp(psipni,ni,psi0)
@@ -56,8 +69,17 @@ def read_cmod_pfile(p_file_name):
     dte_out = interp(psipte,dte,psi0)
     dni_out = interp(psipni,dni,psi0)
     dti_out = interp(psipti,dti,psi0)
+    
+    if add_impurity:
+       nz_out = np.empty(len(ne_out))
+       for i in range(len(ne_out)):
+           nz_out[i] = (ne_out[i]-ni_out[i])/impurity_charge
+
 
     # output quantities are psi_pol, ne, te, ni, ti
     # grid: even psi_pol_norm
     # resolution: 1000
-    return psi0, ne_out, te_out, ni_out, ti_out
+    return psi0, ne_out, te_out, ni_out, ti_out, nz_out
+
+
+    
