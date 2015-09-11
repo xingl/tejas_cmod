@@ -25,7 +25,7 @@ psip_n_lores, Rgrid_lores, Zgrid_lores, F_lores, p_lores, ffprime_lores, pprime_
 psip_n_hires, Rgrid_hires, Zgrid_hires, F_hires, p_hires, ffprime_hires, pprime_hires, psirz_hires, qpsi_hires, rmag_hires, zmag_hires, nw_hires, psiax_hires, psisep_hires = read_EFIT_file(hires_efit_file_name)
 
 plt.plot(psip_n_lores,qpsi_lores,'x',label='low res')
-plt.plot(psip_n_hires/0.999,-qpsi_hires,'r.',label='high res')
+plt.plot(psip_n_hires,-qpsi_hires,'r.',label='high res')
 plt.xlabel('psi_pol_n')
 plt.ylabel('q')
 plt.legend()
@@ -39,13 +39,24 @@ plt.ylabel('pprime')
 plt.legend()
 plt.show()
 
-
 plt.plot(psip_n_lores,ffprime_lores,'x',label='low res')
 plt.plot(psip_n_hires,2*math.pi*ffprime_hires,'r.',label='high res')
 plt.xlabel('psi_pol_n')
 plt.ylabel('ffprime')
 plt.legend()
 plt.show()
+
+plt.plot(psip_n_lores,F_lores,'x',label='low res')
+plt.plot(psip_n_hires,F_hires,'r.',label='high res')
+plt.xlabel('psi_pol_n')
+plt.ylabel('F')
+plt.legend()
+plt.show()
+
+print 'R of magnetic axis', rmag_lores, rmag_hires
+print 'Z of magnetic axis', zmag_lores, zmag_hires
+print 'psi at magnetic axis', psiax_lores, psiax_hires
+print 'psi at separatrix', psisep_lores, psisep_hires 
 
 psip_n_obmp_lores, R_obmp_lores, B_pol_lores, B_tor_lores = calc_B_fields(Rgrid_lores, rmag_lores, Zgrid_lores, zmag_lores, psirz_lores, psiax_lores, psisep_lores, F_lores, nw_lores, psip_n_lores)
 
