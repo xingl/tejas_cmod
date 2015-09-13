@@ -13,8 +13,14 @@ def read_EFIT_file(efit_file_name):
     eqdsk=f.readlines()
     #print 'Header: %s' %eqdsk[0]
     #set resolutions
-    nw=int(eqdsk[0].split()[-2])
-    nh=int(eqdsk[0].split()[-1])
+    line1=eqdsk[0].split()
+    if len(line1)==3 :
+         nw=int(eqdsk[0].split()[-2])
+         nh=int(eqdsk[0].split()[-1])
+    elif len(line1)==2 :
+         nwnh=line1[1]
+         nw=int(nwnh[:3])
+         nh=int(nwnh[3:])
     print 'EFIT file Resolution: %d x %d' %(nw,nh)
 
     entrylength=16
@@ -140,10 +146,10 @@ def calc_B_fields(Rgrid, rmag, Zgrid, zmag, psirz, psiax, psisep, F, nw, psip_n)
     psi_pol_mp = psirz[Z0_ind,:]
     # Rmag_ind is index of unif_R at rmag
     Rmag_ind = np.argmin(np.abs(Rgrid - rmag))
-    print "rmag",rmag
-    print "Rmag_ind",Rmag_ind
-    print "Rgrid[Rmag_ind]~rmag", Rgrid[Rmag_ind]
-    print "psi_pol_mp[Rmag_ind]~psiax", psi_pol_mp[Rmag_ind]
+    ###print "rmag",rmag
+    ###print "Rmag_ind",Rmag_ind
+    ###print "Rgrid[Rmag_ind]~rmag", Rgrid[Rmag_ind]
+    ###print "psi_pol_mp[Rmag_ind]~psiax", psi_pol_mp[Rmag_ind]
     psi_pol_obmp = psi_pol_mp[Rmag_ind:].copy()
     #normalize psi_pol_obmp to psip_n_temp
     psip_n_temp = np.empty(len(psi_pol_obmp))
@@ -151,13 +157,13 @@ def calc_B_fields(Rgrid, rmag, Zgrid, zmag, psirz, psiax, psisep, F, nw, psip_n)
         psip_n_temp[i] = (psi_pol_obmp[i]-psiax)/(psisep-psiax)
     unif_R = np.linspace(Rgrid[Rmag_ind],Rgrid[-1],nw*10)
     psip_n_unifR = interp(Rgrid[Rmag_ind:],psip_n_temp,unif_R)
-    psisep_ind = np.argmin(abs(psip_n_unifR-1.06))
-    print "psisep_ind", psisep_ind
-    print "psip_n_temp[psisep_ind]~1", psip_n_unifR[psisep_ind]
+    psisep_ind = np.argmin(abs(psip_n_unifR-1.0))
+    ###print "psisep_ind", psisep_ind
+    ###print "psip_n_temp[psisep_ind]~1", psip_n_unifR[psisep_ind]
     #print "we have a problem here because uniform R grid doesn't have enough resolution near separatrix"
     psip_n_obmp = psip_n_unifR[:psisep_ind].copy()
-    print "psip_n_obmp[0]~0", psip_n_obmp[0]
-    print "psip_n_obmp[-1]~1", psip_n_obmp[-1]
+    ###print "psip_n_obmp[0]~0", psip_n_obmp[0]
+    ###print "psip_n_obmp[-1]~1", psip_n_obmp[-1]
     #plt.plot(psi_pol_obmp)
     #plt.show()
     R_obmp = unif_R[:psisep_ind].copy()
