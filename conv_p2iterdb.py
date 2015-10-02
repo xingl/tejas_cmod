@@ -40,7 +40,7 @@ rhot_n_obmp = rho_tor_spl(psip_obmp)
 ### ne, ni are in the unit of 10^20 m^(-3)
 ### te, ti are in the unit of KeV
 #psi0, ne, te, ni, ti, nz=read_cmod_pfile(p_file_name,shift=False)
-psi0, ne, te, ni, ti, nz=read_cmod_pfile(p_file_name,shift_Ti=False,shift_Te=False)
+psi0, ne, te, ni, ti, nz=read_cmod_pfile(p_file_name,shift_Ti=True,shift_Te=True)
 ne = ne*1E20
 te = te*e*1E03
 ni = ni*1E20
@@ -84,9 +84,13 @@ rhot_gene,gammaE_gene,omega_tor_gene = calc_gammaE_gene(R_obmp[psi_Er_f:psi_Er_l
 
 omega_tor_full = interp(rhot_gene,omega_tor_gene,rhot0)
 
-plt.plot(rhot0,omega_tor_full,label='p-file')
-plt.plot(rhot_idb,vrot_idb,label='iterdb')
+plt.plot(rhot0,omega_tor_full,'x',label='p-file')
+plt.plot(rhot_idb,vrot_idb,'.',label='iterdb')
 plt.axis((0.9,1.0,-150000,20000))
 plt.legend()
 plt.show()
+
+file_out_base = 'profiles_wb' 
+base_number = '1120907032.01012'
+#output_iterdb(rhot0,ne,te/e,ni,ti/e,file_out_base+base_number,base_number,'9999',vrot=omega_tor_full,nimp=nz)
 
