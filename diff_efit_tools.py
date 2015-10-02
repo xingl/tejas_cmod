@@ -308,11 +308,11 @@ if write_binfo:
     F_out_lowres = interp(psi_lowres/(psisep_lowres-psiax_lowres),F_lowres,psi_norm_out_lowres)
     q_out_lowres = interp(psi_lowres/(psisep_lowres-psiax_lowres),qpsi_lowres,psi_norm_out_lowres)
     rho_tor_out_lowres = interp(rho_pol_fine_lowres, rho_tor_fine_lowres, np.sqrt(psi_norm_out_lowres))
-    f_lowres=open('Binfo_'+filename_lowres,'w')
-    f_lowres.write('# Outer Midplane')
-    f_lowres.write('# 1.R(m) 2.psi_norm 3.B_pol_lowres(T) 4.B_tor_lowres(T) 5.q 6.rho_tor_lowres\n')
-    f_lowres.write('# R at magnetic axis = '+str(rmag_lowres)+'\n')
-    f_lowres.write('# psisep_lowres - psiax_lowres = '+str(psisep_lowres-psiax_lowres)+'\n')
+    #####f_lowres=open('Binfo_'+filename_lowres,'w')
+    #####f_lowres.write('# Outer Midplane')
+    #####f_lowres.write('# 1.R(m) 2.psi_norm 3.B_pol_lowres(T) 4.B_tor_lowres(T) 5.q 6.rho_tor_lowres\n')
+    #####f_lowres.write('# R at magnetic axis = '+str(rmag_lowres)+'\n')
+    #####f_lowres.write('# psisep_lowres - psiax_lowres = '+str(psisep_lowres-psiax_lowres)+'\n')
     Rmag_ind_lowres = np.argmin(abs(Rgrid_lowres - rmag_lowres))
     print "rmag_lowres",rmag_lowres
     print "Rmag_ind_lowres",Rmag_ind_lowres
@@ -322,8 +322,8 @@ if write_binfo:
     psi_ind_sep_lowres = np.argmin(abs(temp-1.05))
     print "psi_ind_sep_lowres",psi_ind_sep_lowres
     B_tor_lowres = F_out_lowres / Rgrid_lowres
-    np.savetxt(f_lowres,np.column_stack((Rgrid_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],psi_norm_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],B_pol_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],B_tor_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],q_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],rho_tor_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres])))
-    f_lowres.close()
+    #####np.savetxt(f_lowres,np.column_stack((Rgrid_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],psi_norm_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],B_pol_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],B_tor_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],q_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],rho_tor_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres])))
+    #####f_lowres.close()
     #plt.plot(psi_norm_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],q_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres])
     #plt.plot(psi_lowres/(psisep_lowres-psiax_lowres),qpsi_lowres)
     #plt.plot(psi_norm_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],(Rgrid_lowres[Rmag_ind_lowres:psi_ind_sep_lowres]-rmag_lowres)*B_tor_lowres[Rmag_ind_lowres:psi_ind_sep_lowres]/(Rgrid_lowres[Rmag_ind_lowres:psi_ind_sep_lowres]*B_pol_lowres[Rmag_ind_lowres:psi_ind_sep_lowres]))
@@ -471,16 +471,16 @@ psi_midplane_highres = psirz_highres[Z0_ind_highres,:]
 
 if show_plots:
     plt.plot(psi_lowres/(psisep_lowres-psiax_lowres),qpsi_lowres, 'bo')
-    plt.plot(psi_highres/(psisep_highres-psiax_highres),-qpsi_highres,'r.')
-    plt.xlabel(r'$\Psi/\Psi_0$')
-    plt.title(r'$q$')
+    plt.plot(psi_highres/(psisep_highres-psiax_highres),qpsi_highres,'r.')
+    plt.xlabel('psi')
+    plt.title('q')
     #plt.xlim((0.95,1.0))
     plt.show()
 
     plt.plot(psi_lowres/(psisep_lowres-psiax_lowres),p_lowres, 'bo')
     plt.plot(psi_highres/(psisep_highres-psiax_highres),p_highres, 'r.')
-    plt.xlabel(r'$\Psi/\Psi_0$')
-    plt.title(r'$P(Nm^{-2})$')
+    plt.xlabel('psi_n')
+    plt.title('P(N/m^2)')
     #plt.xlim((0.95,1.0))
     plt.show()
 
@@ -512,7 +512,7 @@ if show_contour:
         plt.plot(Rgrid_lowres,Zplot_lowres,'.',color = 'black', markersize = 1)
     	plt.xlabel('R(m)')
     	plt.ylabel('Z(m)')
-    plt.show()
+    #plt.show()
 
 #    plt.contour(Rgrid_highres,Zgrid_highres,(psirz_highres[:]-psiax_highres)/(psisep_highres-psiax_highres),levels = [0.1,0.2,0.3],color = 'black', linewidth = 4)
     plt.contour(Rgrid_highres,Zgrid_highres,(psirz_highres[:]-psiax_highres)/(psisep_highres-psiax_highres),levels = [0.9, 0.95, 1.0],color = 'black', linewidth = 4)
@@ -533,11 +533,11 @@ if write_binfo:
     F_out_highres = interp(psi_highres/(psisep_highres-psiax_highres),F_highres,psi_norm_out_highres)
     q_out_highres = interp(psi_highres/(psisep_highres-psiax_highres),qpsi_highres,psi_norm_out_highres)
     rho_tor_out_highres = interp(rho_pol_fine_highres, rho_tor_fine_highres, np.sqrt(psi_norm_out_highres))
-    f_highres=open('Binfo_'+filename_highres,'w')
-    f_highres.write('# Outer Midplane')
-    f_highres.write('# 1.R(m) 2.psi_norm 3.B_pol_highres(T) 4.B_tor_highres(T) 5.q 6.rho_tor_highres\n')
-    f_highres.write('# R at magnetic axis = '+str(rmag_highres)+'\n')
-    f_highres.write('# psisep_highres - psiax_highres = '+str(psisep_highres-psiax_highres)+'\n')
+    #####f_highres=open('Binfo_'+filename_highres,'w')
+    #####f_highres.write('# Outer Midplane')
+    #####f_highres.write('# 1.R(m) 2.psi_norm 3.B_pol_highres(T) 4.B_tor_highres(T) 5.q 6.rho_tor_highres\n')
+    #####f_highres.write('# R at magnetic axis = '+str(rmag_highres)+'\n')
+    #####f_highres.write('# psisep_highres - psiax_highres = '+str(psisep_highres-psiax_highres)+'\n')
     Rmag_ind_highres = np.argmin(abs(Rgrid_highres - rmag_highres))
     print "rmag_highres",rmag_highres
     print "Rmag_ind_highres",Rmag_ind_highres
@@ -547,8 +547,8 @@ if write_binfo:
     psi_ind_sep_highres = np.argmin(abs(temp-1.05))
     print "psi_ind_sep_highres",psi_ind_sep_highres
     B_tor_highres = F_out_highres / Rgrid_highres
-    np.savetxt(f_highres,np.column_stack((Rgrid_highres[Rmag_ind_highres:psi_ind_sep_highres],psi_norm_out_highres[Rmag_ind_highres:psi_ind_sep_highres],B_pol_highres[Rmag_ind_highres:psi_ind_sep_highres],B_tor_highres[Rmag_ind_highres:psi_ind_sep_highres],q_out_highres[Rmag_ind_highres:psi_ind_sep_highres],rho_tor_out_highres[Rmag_ind_highres:psi_ind_sep_highres])))
-    f_highres.close()
+    #####np.savetxt(f_highres,np.column_stack((Rgrid_highres[Rmag_ind_highres:psi_ind_sep_highres],psi_norm_out_highres[Rmag_ind_highres:psi_ind_sep_highres],B_pol_highres[Rmag_ind_highres:psi_ind_sep_highres],B_tor_highres[Rmag_ind_highres:psi_ind_sep_highres],q_out_highres[Rmag_ind_highres:psi_ind_sep_highres],rho_tor_out_highres[Rmag_ind_highres:psi_ind_sep_highres])))
+    #####f_highres.close()
     #plt.plot(psi_norm_out_highres[Rmag_ind_highres:psi_ind_sep_highres],q_out_highres[Rmag_ind_highres:psi_ind_sep_highres])
     #plt.plot(psi_highres/(psisep_highres-psiax_highres),qpsi_highres)
     #plt.plot(psi_norm_out_highres[Rmag_ind_highres:psi_ind_sep_highres],(Rgrid_highres[Rmag_ind_highres:psi_ind_sep_highres]-rmag_highres)*B_tor_highres[Rmag_ind_highres:psi_ind_sep_highres]/(Rgrid_highres[Rmag_ind_highres:psi_ind_sep_highres]*B_pol_highres[Rmag_ind_highres:psi_ind_sep_highres]))
@@ -561,17 +561,17 @@ if write_binfo:
 	#plt.xlabel('R(m)')
         #plt.show()
 
-	plt.plot(psi_norm_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],B_pol_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],color='b')
-        plt.plot(psi_norm_out_highres[Rmag_ind_highres:psi_ind_sep_highres],B_pol_highres[Rmag_ind_highres:psi_ind_sep_highres],color='r')
-        plt.title(r'$B_\theta$')
-        plt.xlabel(r'$\Psi$')
+	plt.plot(psi_norm_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],B_pol_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],'bx')
+        plt.plot(psi_norm_out_highres[Rmag_ind_highres:psi_ind_sep_highres],B_pol_highres[Rmag_ind_highres:psi_ind_sep_highres],'r.')
+        plt.title('B_pol')
+        plt.xlabel('psi_n')
 	#plt.xlim((0.95,1.0))
         plt.show()
 
-	plt.plot(psi_norm_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],B_tor_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],color='b')
-        plt.plot(psi_norm_out_highres[Rmag_ind_highres:psi_ind_sep_highres],B_tor_highres[Rmag_ind_highres:psi_ind_sep_highres],color='r')
-        plt.title(r'$B_\phi$')
-        plt.xlabel(r'$\Psi$')
+	plt.plot(psi_norm_out_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],B_tor_lowres[Rmag_ind_lowres:psi_ind_sep_lowres],'bx')
+        plt.plot(psi_norm_out_highres[Rmag_ind_highres:psi_ind_sep_highres],B_tor_highres[Rmag_ind_highres:psi_ind_sep_highres],'r.')
+        plt.title('B_tor')
+        plt.xlabel('psi_n')
 	#plt.xlim((0.95,1.0))
         plt.show()
 
