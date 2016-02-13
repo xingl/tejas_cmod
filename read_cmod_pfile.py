@@ -3,7 +3,7 @@ from interp import *
 import matplotlib.pyplot as plt
 
 
-def read_cmod_pfile(p_file_name,shift_Te=True,shift_Ti=True,add_impurity=True):
+def read_cmod_pfile(p_file_name,shift_Te=False,shift_Ti=True,add_impurity=True):
 
     impurity_charge = 5.0
 
@@ -13,7 +13,7 @@ def read_cmod_pfile(p_file_name,shift_Te=True,shift_Ti=True,add_impurity=True):
 
     sdata = data.split('\n')
     nr = int(sdata[0].split()[0])
-    print "resolution in pfile: nr = ", nr
+    print "p-file resolution: nr = ", nr
 
     # ne is electron density profile, dne is gradient of ne
     ne = np.empty(0)
@@ -24,6 +24,7 @@ def read_cmod_pfile(p_file_name,shift_Te=True,shift_Ti=True,add_impurity=True):
     dte = np.empty(0)
     ti = np.empty(0)
     dti = np.empty(0)
+
     # psipne is the grid of psi_pol on which ne&dne above is recorded
     psipne = np.empty(0)
     psipni = np.empty(0)
@@ -94,7 +95,7 @@ def read_cmod_pfile_raw(p_file_name):
 
     sdata = data.split('\n')
     nr = int(sdata[0].split()[0])
-    print "resolution in pfile: nr = ", nr
+    print "p file resolution: nr = ", nr
 
     # ne is electron density profile, dne is gradient of ne
     ne = np.empty(0)
@@ -129,5 +130,5 @@ def read_cmod_pfile_raw(p_file_name):
         ti = np.append(ti,float(temp[1]))
         dti = np.append(dti,float(temp[2]))
 
-  
+
     return psipne,ne,psipte,te,psipni,ni,psipti,ti

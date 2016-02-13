@@ -11,16 +11,9 @@ def read_EFIT_file(efit_file_name):
 
     f = open(efit_file_name,'r')
     eqdsk=f.readlines()
-    #print 'Header: %s' %eqdsk[0]
-    #set resolutions
     line1=eqdsk[0].split()
-    if len(line1)==3 :
-         nw=int(eqdsk[0].split()[-2])
-         nh=int(eqdsk[0].split()[-1])
-    elif len(line1)==2 :
-         nwnh=line1[1]
-         nw=int(nwnh[:3])
-         nh=int(nwnh[3:])
+    nw=int(eqdsk[0].split()[-2])
+    nh=int(eqdsk[0].split()[-1])
     print 'EFIT file Resolution: %d x %d' %(nw,nh)
 
     entrylength=16
@@ -42,22 +35,22 @@ def read_EFIT_file(efit_file_name):
     if zmag!=zmag2: sys.exit('Inconsistent zmag: %7.4g, %7.4g' %(zmag,zmag2) )
     if psisep2!=psisep: sys.exit('Inconsistent psisep: %7.4g, %7.4g' %(psisep,psisep2))
 
-    print "rmag", rmag
-    print "zmag", zmag
-    print "psiax", psiax
-    print "psisep", psisep
-    print "Bctr", Bctr
+    ###print "rmag", rmag
+    ###print "zmag", zmag
+    ###print "psiax", psiax
+    ###print "psisep", psisep
+    ###print "Bctr", Bctr
     # (R,Z) grid on which psi_pol is written
     Rgrid = np.arange(nw)/float(nw-1)*rdim+rmin
-    print "rdim",rdim
-    print "rmin",rmin
-    print "first few Rgrid points", Rgrid[0:6]
-    print "last few Rgrid points", Rgrid[-7:-1]
+    ###print "rdim",rdim
+    ###print "rmin",rmin
+    ###print "first few Rgrid points", Rgrid[0:6]
+    ###print "last few Rgrid points", Rgrid[-7:-1]
     Zgrid = np.arange(nh)/float(nh-1)*zdim+(zmid-zdim/2.0)
-    print "zdim",zdim
-    print "zmid",zmid
-    print "first few Zgrid points", Zgrid[0:6]
-    print "last few Zgrid points", Zgrid[-7:-1]
+    ###print "zdim",zdim
+    ###print "zmid",zmid
+    ###print "first few Zgrid points", Zgrid[0:6]
+    ###print "last few Zgrid points", Zgrid[-7:-1]
 
     # F, p, ffprime, pprime, q are written on uniform psi_pol grid
     # uniform grid of psi_pol~[psiax,psisep], resolution=nw
@@ -156,8 +149,9 @@ def calc_B_fields(Rgrid, rmag, Zgrid, zmag, psirz, psiax, psisep, F, nw, psip_n)
     for i in range(len(psi_pol_obmp)):
         psip_n_temp[i] = (psi_pol_obmp[i]-psiax)/(psisep-psiax)
     unif_R = np.linspace(Rgrid[Rmag_ind],Rgrid[-1],nw*10)
+#    unif_R = np.linspace(Rgrid[Rmag_ind],Rgrid[-1],nw)
     psip_n_unifR = interp(Rgrid[Rmag_ind:],psip_n_temp,unif_R)
-    psisep_ind = np.argmin(abs(psip_n_unifR-1.0))
+    psisep_ind = np.argmin(abs(psip_n_unifR-1.02))
     ###print "psisep_ind", psisep_ind
     ###print "psip_n_temp[psisep_ind]~1", psip_n_unifR[psisep_ind]
     #print "we have a problem here because uniform R grid doesn't have enough resolution near separatrix"
@@ -177,4 +171,34 @@ def calc_B_fields(Rgrid, rmag, Zgrid, zmag, psirz, psiax, psisep, F, nw, psip_n)
 
     # psip_n_obmp is normalized psi_pol at outboard midplane on uniform unif_R
     # B_tor and B_pol are on uniform unif_R as well
+    # psip_n_obmp is unlike psip_n ([0,1]), it goes from 0 to 1.06 here
     return psip_n_obmp, R_obmp, B_pol, B_tor
+
+def read_EFIT_parameters(efit_file_name):
+
+    f = open(efit_file_name,'r')
+    eqdsk=f.readlines()
+    line1=eqdsk[0].split()
+    nw=int(eqdsk[0].split()[-2])
+    nh=int(eqdsk[0].split()[-1])
+
+    entrylength=16
+    #note: here rmin is rleft from EFIT
+    try:
+        rdim,zdim,rctr,rmin,zmid=[float(eqdsk[1][j*entrylength:(j+1)*entrylength]) for j in range(len(eqdsk[1])/entrylength)]
+    except:
+        entrylength=15
+        try:
+            rdim,zdim,rctr,rmin,zmid=[float(eqdsk[1][j*entrylength:(j+1)*entrylength]) for j in range(len(eqdsk[1])/entrylength)]
+        except:
+            exit('Error reading EQDSK file, please check format!')
+
+    rmag,zmag,psiax,psisep,Bctr=[float(eqdsk[2][j*entrylength:(j+1)*entrylength]) for j in range(len(eqdsk[2])/entrylength)]
+    curr,psiax2,dum,rmag2,dum=[float(eqdsk[3][j*entrylength:(j+1)*entrylength]) for j in range(len(eqdsk[3])/entrylength)]
+    zmag2,dum,psisep2,dum,dum=[float(eqdsk[4][j*entrylength:(j+1)*entrylength]) for j in range(len(eqdsk[4])/entrylength)]
+    if rmag!=rmag2: sys.exit('Inconsistent rmag: %7.4g, %7.4g' %(rmag,rmag2))
+    if psiax2!=psiax: sys.exit('Inconsistent psiax: %7.4g, %7.4g' %(psiax,psiax2))
+    if zmag!=zmag2: sys.exit('Inconsistent zmag: %7.4g, %7.4g' %(zmag,zmag2) )
+    if psisep2!=psisep: sys.exit('Inconsistent psisep: %7.4g, %7.4g' %(psisep,psisep2))
+
+    return rdim,zdim,rctr,rmin,zmid,Bctr,curr,nh
